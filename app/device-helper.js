@@ -59,11 +59,8 @@ export async function findDeviceByDeviceId(deviceId) {
 				return;
 			}
 
-			await noble.stopScanningAsync();
-
-			console.log('Found device, connecting...');
 			resolve(device);
-
+			await noble.stopScanningAsync();
 		});
 	});
 }

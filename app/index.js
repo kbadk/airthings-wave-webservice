@@ -13,7 +13,8 @@ const SENSOR_CHARACTERISTICS_UUID = 'b42e2a68ade711e489d3123b93f75cba';
 // When defined by the user, removes the need to connect to every BLE device in order to identify
 // the Airthings Wave+ device.
 const DEVICE_ID = env.DEVICE_ID;
-const PORT = env.PORT;
+
+const PORT = env.PORT || 8080;
 
 async function main() {
 	let deviceId = DEVICE_ID;
@@ -28,15 +29,28 @@ async function main() {
 
 	const app = express();
 
+	let cachedNeatObject;
+
 	app.get('/', async (req, res) => {
+		const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+
+		if (cachedNeatObject) {
+			console.log(`Responding with cached data: ${JSON.stringify(cachedNeatObject)} to ${ip}`);
+			res.json(cachedNeatObject);
+			return;
+		}
+
 		await device.connectAsync();
 		const readCharacteristic = await getCharacteristicReader(device, SENSOR_CHARACTERISTICS_UUID);
 		const sensorData = await readCharacteristic();
 		await device.disconnectAsync();
 
 		const neatObject = parseSensorData(sensorData);
-		console.log(neatObject);
+		console.log(`Responding with new data: ${JSON.stringify(neatObject)} to ${ip}`);
 		res.json(neatObject);
+
+		cachedNeatObject = neatObject;
+		setTimeout(() => cachedNeatObject = null, 4 * 60 * 1000);
 	});
 
 	app.all('*', async (req, res) => {

@@ -9,7 +9,12 @@ this, the application won't have to connect to every device found to find the Wa
 
 On every request, the service connects, reads the values and disconnects. Keeping a persistent
 connection is flaky and also seemingly keeps other clients from connecting to the device. As a
-result, the response time for the request is usually about 1-3 seconds.
+result, the response time for the request is usually about 1-3 seconds when uncached.
+
+Requests automatically get cached for 4 minutes, so further requests won't put unnecessary strain
+on the device. After all, it's battery powered, and you don't want it to die from being constantly
+polled. Besides, the sensors only update their sensor data once every 5 minutes (1 hour for the
+radon reader), so polling the device more frequently wouldn't change much.
 
 ## Usage
 
