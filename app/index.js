@@ -1,6 +1,9 @@
 import { env } from 'process';
+
 import express from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { Mutex } from 'async-mutex';
+
 import { findDeviceIdByManufacturerId, findDeviceByDeviceId, getCharacteristicReader } from './device-helper.js';
 
 // ManufacturerID for "Corentium AS", creator of the BLE receiver in the Airthings Wave+.
@@ -18,25 +21,24 @@ const PORT = env.PORT || 8080;
 
 async function main() {
 	let deviceId = DEVICE_ID;
-
 	if (!deviceId) {
 		console.warn('No device ID found. Scanning by name...');
 		const deviceId = await findDeviceIdByManufacturerId(MANUFACTURER_ID);
 		console.warn('Found device with ID', deviceId, 'set this as DEVICE_ID on next start');
 	}
-
 	const device = await findDeviceByDeviceId(deviceId);
 
 	const app = express();
-
-	let cachedNeatObject;
-
+	const mutex = new Mutex();
+	let cachedNeatObject = null;
 	app.get('/', async (req, res) => {
+		await mutex.acquire();
 		const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
 		if (cachedNeatObject) {
 			console.log(`Responding with cached data: ${JSON.stringify(cachedNeatObject)} to ${ip}`);
 			res.json(cachedNeatObject);
+			mutex.release();
 			return;
 		}
 
@@ -51,6 +53,7 @@ async function main() {
 
 		cachedNeatObject = neatObject;
 		setTimeout(() => cachedNeatObject = null, 4 * 60 * 1000);
+		mutex.release();
 	});
 
 	app.all('*', async (req, res) => {

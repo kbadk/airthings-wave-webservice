@@ -12,11 +12,11 @@ RUN apk add --update bluez
 
 COPY /app /app
 COPY --from=builder /app/node_modules /app/node_modules
-COPY /entrypoint.sh /entrypoint.sh
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=30m --timeout=5s \
 	CMD wget --no-verbose --spider http://localhost:8080/ || exit 1
 
-CMD npm run --silent start
+WORKDIR /app
+CMD npm run start
