@@ -65,14 +65,14 @@ async function main() {
 
 function parseSensorData(sensorData) {
 	return {
-		battery: sensorData[0],
-		humidity: sensorData[1] / 2.0,
-		radonStAvg: sensorData[4],
-		radonLtAvg: sensorData[5],
-		temperature: sensorData[6] / 100.0,
-		pressure: sensorData[7] / 50.0,
-		co2: sensorData[8],
-		voc: sensorData[9]
+		// sensorVersion: sensorData[0],  // Always 1 so far
+		humidity: sensorData[1] / 2,      // Humidity, %rH
+		radonStAvg: sensorData[4],        // Radon, short term average, Bq/m3
+		radonLtAvg: sensorData[5],        // Radon, long term average, Bq/m3
+		temperature: sensorData[6] / 100, // Temperature, Celcius
+		pressure: sensorData[7] / 50,     // Relative atmospheric pressure, hPa
+		co2: sensorData[8],               // Carbon dioxide, ppm
+		voc: sensorData[9]                // Votalie organic compounds, ppb
 	};
 }
 
