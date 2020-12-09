@@ -2,7 +2,7 @@ import { env } from 'process';
 
 import express from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { Mutex } from 'async-mutex';
+import { Mutex, withTimeout } from 'async-mutex';
 
 import { findDeviceIdByManufacturerId, findDeviceByDeviceId, getCharacteristicReader } from './device-helper.js';
 
@@ -19,6 +19,10 @@ const DEVICE_ID = env.DEVICE_ID;
 
 const PORT = env.PORT || 8080;
 
+function sleep(seconds) {
+	return new Promise((accept) => setTimeout(accept, 1000 * seconds));
+}
+
 async function main() {
 	let deviceId = DEVICE_ID;
 	if (!deviceId) {
@@ -29,10 +33,16 @@ async function main() {
 	const device = await findDeviceByDeviceId(deviceId);
 
 	const app = express();
-	const mutex = new Mutex();
+	const mutex = withTimeout(new Mutex(), 20 * 1000);
 	let cachedNeatObject = null;
 	app.get('/', async (req, res) => {
-		await mutex.acquire();
+		try {
+			await mutex.acquire();
+		} catch (e) {
+			console.log('Mutex acquisition timed out, forcing acquisition');
+			await mutex.release();
+			await mutex.acquire();
+		}
 		const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
 		if (cachedNeatObject) {
@@ -42,10 +52,21 @@ async function main() {
 			return;
 		}
 
-		await device.connectAsync();
-		const readCharacteristic = await getCharacteristicReader(device, SENSOR_CHARACTERISTICS_UUID);
-		const sensorData = await readCharacteristic();
-		await device.disconnectAsync();
+		let sensorData;
+		while (!sensorData) {
+			try {
+				if (device.state !== 'connected') {
+					await device.connectAsync();
+				}
+				const readCharacteristic = await getCharacteristicReader(device,
+					SENSOR_CHARACTERISTICS_UUID);
+				sensorData = await readCharacteristic();
+				await device.disconnectAsync();
+			} catch (e) {
+				console.error('Error', String(e));
+				await sleep(2);
+			}
+		}
 
 		const neatObject = parseSensorData(sensorData);
 		console.log(`Responding with new data: ${JSON.stringify(neatObject)} to ${ip}`);
