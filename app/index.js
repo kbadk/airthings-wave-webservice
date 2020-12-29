@@ -33,48 +33,13 @@ async function main() {
 	const device = await findDeviceByDeviceId(deviceId);
 
 	const app = express();
+
 	const mutex = withTimeout(new Mutex(), 20 * 1000);
-	let cachedNeatObject = null;
 	app.get('/', async (req, res) => {
-		try {
-			await mutex.acquire();
-		} catch (e) {
-			console.log('Mutex acquisition timed out, forcing acquisition');
-			await mutex.release();
-			await mutex.acquire();
-		}
 		const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-
-		if (cachedNeatObject) {
-			console.log(`Responding with cached data: ${JSON.stringify(cachedNeatObject)} to ${ip}`);
-			res.json(cachedNeatObject);
-			mutex.release();
-			return;
-		}
-
-		let sensorData;
-		while (!sensorData) {
-			try {
-				if (device.state !== 'connected') {
-					await device.connectAsync();
-				}
-				const readCharacteristic = await getCharacteristicReader(device,
-					SENSOR_CHARACTERISTICS_UUID);
-				sensorData = await readCharacteristic();
-				await device.disconnectAsync();
-			} catch (e) {
-				console.error('Error', String(e));
-				await sleep(2);
-			}
-		}
-
-		const neatObject = parseSensorData(sensorData);
-		console.log(`Responding with new data: ${JSON.stringify(neatObject)} to ${ip}`);
-		res.json(neatObject);
-
-		cachedNeatObject = neatObject;
-		setTimeout(() => cachedNeatObject = null, 4 * 60 * 1000);
-		mutex.release();
+		const [ cached, sensorData ] = await readSensorData(device, mutex);
+		console.log(`Responding with ${cached ? 'cached' : 'new' } data: ${JSON.stringify(sensorData)} to ${ip}`);
+		res.json(sensorData);
 	});
 
 	app.all('*', async (req, res) => {
@@ -95,6 +60,47 @@ function parseSensorData(sensorData) {
 		co2: sensorData[8],               // Carbon dioxide, ppm
 		voc: sensorData[9]                // Votalie organic compounds, ppb
 	};
+}
+
+let cachedSensorData = null;
+async function readSensorData(device, mutex) {
+	if (cachedSensorData) {
+		return [ true, cachedSensorData ];
+	}
+
+	try {
+		await mutex.acquire();
+	} catch (e) {
+		console.log('Mutex acquisition timed out, forcing acquisition');
+		await mutex.release();
+		await mutex.acquire();
+	}
+
+	let sensorData;
+	while (!sensorData) {
+		try {
+			if (device.state !== 'connected') {
+				await device.connectAsync();
+			}
+			const readCharacteristic = await getCharacteristicReader(device,
+				SENSOR_CHARACTERISTICS_UUID);
+			sensorData = await readCharacteristic();
+			await device.disconnectAsync();
+		} catch (e) {
+			console.error('Error', String(e));
+			await sleep(2);
+		}
+	}
+
+	cachedSensorData = parseSensorData(sensorData);;
+	setTimeout(() => cachedSensorData = null, 4 * 60 * 1000);
+
+	mutex.release();
+	return [ false, cachedSensorData ];
+}
+
+async function updateMetrics() {
+
 }
 
 main();
