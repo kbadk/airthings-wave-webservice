@@ -2,6 +2,8 @@
 
 Node.js microservice for reading sensor data from an Airthings Wave Plus device.
 
+Presents a simple JSON object response (`/`) and Prometheus metrics (`/metrics`).
+
 When starting for the first time, the microservice will have to connect to all devices it
 discovers to find the Wave device. This can take a little while. Once the device has been
 found, set the `DEVICE_ID` environment variable as instructed by the application output. By doing
@@ -18,18 +20,48 @@ radon reader), so polling the device more frequently wouldn't change much.
 
 ## Usage
 
-```bash
+```
 $ curl -s localhost:8080 | jq
 {
-  "battery": 1,
-  "humidity": 35,
-  "radonStAvg": 7,
-  "radonLtAvg": 10,
-  "temperature": 22.16,
-  "pressure": 1014.1,
-  "co2": 727,
-  "voc": 50
+  "humidity": 29,
+  "radonStAvg": 11,
+  "radonLtAvg": 11,
+  "temperature": 22.8,
+  "pressure": 982.84,
+  "co2": 819,
+  "voc": 105
 }
+```
+
+```sh
+$ curl -s localhost:8080/metrics
+# HELP humidity_percent Humidity, %rH
+# TYPE humidity_percent gauge
+humidity_percent 29
+
+# HELP radon_short_term_avg_becquerels Radon, short term average, Bq/m3
+# TYPE radon_short_term_avg_becquerels gauge
+radon_short_term_avg_becquerels 11
+
+# HELP radon_long_term_avg_becquerels Radon, long term average, Bq/m3
+# TYPE radon_long_term_avg_becquerels gauge
+radon_long_term_avg_becquerels 11
+
+# HELP temperature_celsius Temperature, Celcius
+# TYPE temperature_celsius gauge
+temperature_celsius 22.8
+
+# HELP pressure_pascal Relative atmospheric pressure, hPa
+# TYPE pressure_pascal gauge
+pressure_pascal 982.84
+
+# HELP carbondioxide_ppm Carbon dioxide, ppm
+# TYPE carbondioxide_ppm gauge
+carbondioxide_ppm 819
+
+# HELP voc_ppb Votalie organic compounds, ppb
+# TYPE voc_ppb gauge
+voc_ppb 105
 ```
 
 Sample `docker-compose.yml`
@@ -54,5 +86,10 @@ services:
 
 ## Purpose
 
-Unlimited potential! I use it in conjunction with [Node-RED](https://nodered.org/) to make
-certain Philips Hue light bulbs turn red when the air quality is poor, so I know to vent the room.
+Unlimited potential!
+
+I use it in conjunction with [Node-RED](https://nodered.org/) to make certain Philips Hue light
+bulbs turn red when the air quality is poor, so I know to vent the room.
+
+I also use it for plotting data in Grafana
+([Grafana dashboard](https://grafana.com/grafana/dashboards/12310)) from the metrics endpoint.
