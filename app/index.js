@@ -120,9 +120,9 @@ async function readSensorData(device, mutex) {
 	try {
 		await mutex.acquire();
 	} catch (e) {
-		console.log('Mutex acquisition timed out, forcing acquisition');
+		console.log('Mutex acquisition timed out, forcing release');
 		await mutex.release();
-		await mutex.acquire();
+		return await readSensorData(device, mutex);
 	}
 
 	let sensorData;
