@@ -66,7 +66,7 @@ async function main() {
 
 	const app = express();
 
-	const mutex = withTimeout(new Mutex(), 20 * 1000);
+	const mutex = withTimeout(new Mutex(), 15 * 1000);
 	app.get('/', async (req, res) => {
 		const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 		const [ cached, sensorData ] = await readSensorData(device, mutex);
@@ -139,9 +139,19 @@ async function readSensorData(device, mutex) {
 			console.error('Error', String(e));
 			await sleep(2);
 		}
+
+		// The sensor occasionally sends back this bogus sensor data:
+		// { "humidity": 127.5, "radonStAvg": 0, "radonLtAvg": 0, "temperature": 382.2,
+		// 	 "pressure": 1310.7, "co2": 65535, "voc": 65535 }
+		// When that happens, we want to throw it away and try again.
+		if (sensorData && (sensorData.humidity > 100 || sensorData.temperature > 100
+			|| sensorData.co2 === 65535 || sensorData.voc === 65535)) {
+			sensorData = null;
+			await sleep(2);
+		}
 	}
 
-	cachedSensorData = parseSensorData(sensorData);;
+	cachedSensorData = parseSensorData(sensorData);
 	setTimeout(() => cachedSensorData = null, 4 * 60 * 1000);
 
 	mutex.release();
