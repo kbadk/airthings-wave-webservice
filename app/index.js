@@ -66,7 +66,7 @@ async function main() {
 
 	const app = express();
 
-	const mutex = withTimeout(new Mutex(), 15 * 1000);
+	const mutex = withTimeout(new Mutex(), 27 * 1000);
 	app.get('/', async (req, res) => {
 		const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 		const [ cached, sensorData ] = await readSensorData(device, mutex);
@@ -146,6 +146,7 @@ async function readSensorData(device, mutex) {
 		// When that happens, we want to throw it away and try again.
 		if (sensorData && (sensorData.humidity > 100 || sensorData.temperature > 100
 			|| sensorData.co2 === 65535 || sensorData.voc === 65535)) {
+			console.log('Received bogus data', sensorData);
 			sensorData = null;
 			await sleep(2);
 		}
@@ -156,10 +157,6 @@ async function readSensorData(device, mutex) {
 
 	mutex.release();
 	return [ false, cachedSensorData ];
-}
-
-async function updateMetrics() {
-
 }
 
 main();
