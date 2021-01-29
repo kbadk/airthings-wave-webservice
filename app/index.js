@@ -127,13 +127,14 @@ async function readSensorData(device, mutex) {
 
 	let sensorData;
 	while (!sensorData) {
+		let rawSensorData;
 		try {
 			if (device.state !== 'connected') {
 				await device.connectAsync();
 			}
 			const readCharacteristic = await getCharacteristicReader(device,
 				SENSOR_CHARACTERISTICS_UUID);
-			sensorData = await readCharacteristic();
+			rawSensorData = await readCharacteristic();
 			await device.disconnectAsync();
 		} catch (e) {
 			console.error('Error', String(e));
@@ -144,15 +145,18 @@ async function readSensorData(device, mutex) {
 		// { "humidity": 127.5, "radonStAvg": 0, "radonLtAvg": 0, "temperature": 382.2,
 		// 	 "pressure": 1310.7, "co2": 65535, "voc": 65535 }
 		// When that happens, we want to throw it away and try again.
-		if (sensorData && (sensorData.humidity > 100 || sensorData.temperature > 100
-			|| sensorData.co2 === 65535 || sensorData.voc === 65535)) {
-			console.log('Received bogus data', sensorData);
-			sensorData = null;
-			await sleep(2);
+		if (rawSensorData) {
+			sensorData = parseSensorData(rawSensorData);
+			if (sensorData.humidity > 100 || sensorData.temperature > 100
+				|| sensorData.co2 === 65535 || sensorData.voc === 65535) {
+				console.log('Received bogus data', sensorData);
+				sensorData = null;
+				await sleep(2);
+				}
 		}
 	}
 
-	cachedSensorData = parseSensorData(sensorData);
+	cachedSensorData = sensorData;
 	setTimeout(() => cachedSensorData = null, 4 * 60 * 1000);
 
 	mutex.release();

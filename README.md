@@ -9,9 +9,9 @@ discovers to find the Wave device. This can take a little while. Once the device
 found, set the `DEVICE_ID` environment variable as instructed by the application output. By doing
 this, the application won't have to connect to every device found to find the Wave.
 
-On every request, the service connects, reads the values and disconnects. Keeping a persistent
-connection is flaky and also seemingly keeps other clients from connecting to the device. As a
-result, the response time for the request is usually about 1-3 seconds when uncached.
+On every request (unless cached), the service connects, reads the values and disconnects. Keeping
+a persistent connection is flaky and also seemingly keeps other clients from connecting to the
+device. As a result, the response time for the request is usually about 1-3 seconds when uncached.
 
 Requests automatically get cached for 4 minutes, so further requests won't put unnecessary strain
 on the device. After all, it's battery powered, and you don't want it to die from being constantly
