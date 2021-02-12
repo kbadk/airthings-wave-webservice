@@ -3,9 +3,9 @@ import { env } from 'process';
 import express from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { Mutex, withTimeout } from 'async-mutex';
-import * as promClient from 'prom-client';
 
 import { findDeviceIdByManufacturerId, findDeviceByDeviceId, getCharacteristicReader } from './device-helper.js';
+import { getMetrics } from './metrics-helper.js';
 
 // ManufacturerID for "Corentium AS", creator of the BLE receiver in the Airthings Wave+.
 const MANUFACTURER_ID = 820;
@@ -19,37 +19,6 @@ const SENSOR_CHARACTERISTICS_UUID = 'b42e2a68ade711e489d3123b93f75cba';
 const DEVICE_ID = env.DEVICE_ID;
 
 const PORT = env.PORT || 8080;
-
-const metricGuages = {
-	humidity: new promClient.Gauge({
-		name: 'humidity_percent',
-		help: 'Humidity, %rH'
-	}),
-	radonStAvg: new promClient.Gauge({
-		name: 'radon_short_term_avg_becquerels',
-		help: 'Radon, short term average, Bq/m3'
-	}),
-	radonLtAvg: new promClient.Gauge({
-		name: 'radon_long_term_avg_becquerels',
-		help: 'Radon, long term average, Bq/m3'
-	}),
-	temperature: new promClient.Gauge({
-		name: 'temperature_celsius',
-		help: 'Temperature, Celcius'
-	}),
-	pressure: new promClient.Gauge({
-		name: 'pressure_pascal',
-		help: 'Relative atmospheric pressure, hPa'
-	}),
-	co2: new promClient.Gauge({
-		name: 'carbondioxide_ppm',
-		help: 'Carbon dioxide, ppm'
-	}),
-	voc: new promClient.Gauge({
-		name: 'voc_ppb',
-		help: 'Votalie organic compounds, ppb'
-	})
-};
 
 function sleep(seconds) {
 	return new Promise((accept) => setTimeout(accept, 1000 * seconds));
@@ -81,14 +50,10 @@ async function main() {
 		const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 		const [ cached, sensorData ] = await readSensorData(device, mutex);
 
-		for (const metricName in metricGuages) {
-			metricGuages[metricName].set(sensorData[metricName]);
-		}
-
 		console.log(`Responding with ${cached ? 'cached' : 'new' } data (metrics): ` +
 			`${JSON.stringify(sensorData)} to ${ip}`);
 
-		res.type('text/plain').send(await promClient.register.metrics());
+		res.type('text/plain').send(await getMetrics(sensorData));
 	});
 
 	app.all('*', async (req, res) => {
