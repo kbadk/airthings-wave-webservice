@@ -19,4 +19,4 @@ HEALTHCHECK --interval=30m --timeout=5s \
 	CMD wget --no-verbose --spider http://localhost:8080/ || exit 1
 
 WORKDIR /app
-CMD npm run start
+CMD ["npm", "run", "start"]

@@ -22,8 +22,13 @@ export async function findDeviceIdByManufacturerId(manufacturerId) {
 
 			await device.connectAsync();
 
-			const [discoveredManufacturerId,] = struct.unpack('<HLH',
-				device.advertisement.manufacturerData);
+			try {
+				const [discoveredManufacturerId,] = struct.unpack('<HLH',
+					device.advertisement.manufacturerData);
+			} catch (e) {
+				console.log('Unable to unpack manufacturerData for', device.id);
+				return;
+			}
 
 			await device.disconnectAsync();
 
@@ -85,15 +90,19 @@ export async function getCharacteristicReader(device, characteristicId) {
 
 			// If it doesn't resolve fast enough, we timeout.
 			const timeout = setTimeout(() => {
-				reject('Timeout reading characteristics');
+				reject(new Error('Timeout reading characteristics'));
 			}, 2000);
 
 			characteristics[0].read((error, data) => {
 				if (error) return reject(error);
 
 				clearTimeout(timeout);
-				const reading = struct.unpack('BBBBHHHHHHHH', data);
-				accept(reading);
+				try {
+					const reading = struct.unpack('BBBBHHHHHHHH', data);
+					accept(reading);
+				} catch (e) {
+					reject('Unable to unpack reading');
+				}
 			});
 
 		});
