@@ -18,6 +18,9 @@ const SENSOR_CHARACTERISTICS_UUID = 'b42e2a68ade711e489d3123b93f75cba';
 // the Airthings Wave+ device.
 const DEVICE_ID = env.DEVICE_ID;
 
+// How long to use cached data in seconds.
+const CACHE_TTL = Number(env.CACHE_TTL) || 300;
+
 const PORT = env.PORT || 8080;
 
 function sleep(seconds) {
@@ -38,9 +41,9 @@ async function main() {
 	const mutex = withTimeout(new Mutex(), 27 * 1000);
 	app.get('/', async (req, res) => {
 		const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-		const [ cached, sensorData ] = await readSensorData(device, mutex);
+		const [cached, sensorData] = await readSensorData(device, mutex);
 
-		console.log(`Responding with ${cached ? 'cached' : 'new' } data: ` +
+		console.log(`Responding with ${cached ? 'cached' : 'new'} data: ` +
 			`${JSON.stringify(sensorData)} to ${ip}`);
 
 		res.json(sensorData);
@@ -48,9 +51,9 @@ async function main() {
 
 	app.get('/metrics', async (req, res) => {
 		const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-		const [ cached, sensorData ] = await readSensorData(device, mutex);
+		const [cached, sensorData] = await readSensorData(device, mutex);
 
-		console.log(`Responding with ${cached ? 'cached' : 'new' } data (metrics): ` +
+		console.log(`Responding with ${cached ? 'cached' : 'new'} data (metrics): ` +
 			`${JSON.stringify(sensorData)} to ${ip}`);
 
 		res.type('text/plain').send(await getMetrics(sensorData));
@@ -77,8 +80,9 @@ function parseSensorData(sensorData) {
 }
 
 let cachedSensorData = null;
+let cacheTimestamp = 0;
 async function readSensorData(device, mutex) {
-	if (cachedSensorData) {
+	if (new Date() - cacheTimestamp < CACHE_TTL * 1000) {
 		return [ true, cachedSensorData ];
 	}
 
@@ -91,38 +95,32 @@ async function readSensorData(device, mutex) {
 	}
 
 	let sensorData;
-	while (!sensorData) {
-		let rawSensorData;
-		try {
-			if (device.state !== 'connected') {
-				await device.connectAsync();
-			}
-			const readCharacteristic = await getCharacteristicReader(device,
-				SENSOR_CHARACTERISTICS_UUID);
-			rawSensorData = await readCharacteristic();
-			await device.disconnectAsync();
-		} catch (e) {
-			console.error('Error', String(e));
-			await sleep(2);
+	try {
+		if (device.state !== 'connected') {
+			await device.connectAsync();
 		}
+		const readCharacteristic = await getCharacteristicReader(device,
+			SENSOR_CHARACTERISTICS_UUID);
+		const rawSensorData = await readCharacteristic();
+		sensorData = parseSensorData(rawSensorData);
+		await device.disconnectAsync();
+	} catch (e) {
+		console.error('Failed to read new sensor data, responding with stale cache', String(e));
+		return [ true, cachedSensorData ]
+	}
 
-		// The sensor occasionally sends back this bogus sensor data:
-		// { "humidity": 127.5, "radonStAvg": 0, "radonLtAvg": 0, "temperature": 382.2,
-		// 	 "pressure": 1310.7, "co2": 65535, "voc": 65535 }
-		// When that happens, we want to throw it away and try again.
-		if (rawSensorData) {
-			sensorData = parseSensorData(rawSensorData);
-			if (sensorData.humidity > 100 || sensorData.temperature > 100
-				|| sensorData.co2 === 65535 || sensorData.voc === 65535) {
-				console.log('Received bogus data', sensorData);
-				sensorData = null;
-				await sleep(2);
-				}
-		}
+	// The sensor occasionally sends back this bogus sensor data:
+	// { "humidity": 127.5, "radonStAvg": 0, "radonLtAvg": 0, "temperature": 382.2,
+	// 	 "pressure": 1310.7, "co2": 65535, "voc": 65535 }
+	// When that happens, we want to throw it away and try again.
+	if (sensorData.humidity > 100 || sensorData.temperature > 100
+		|| sensorData.co2 === 65535 || sensorData.voc === 65535) {
+		console.log('Received bogus data', sensorData);
+		sensorData = null;
 	}
 
 	cachedSensorData = sensorData;
-	setTimeout(() => cachedSensorData = null, 4 * 60 * 1000);
+	cacheTimestamp = new Date();
 
 	mutex.release();
 	return [ false, cachedSensorData ];
