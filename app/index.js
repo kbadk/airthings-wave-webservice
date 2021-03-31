@@ -18,14 +18,13 @@ const SENSOR_CHARACTERISTICS_UUID = 'b42e2a68ade711e489d3123b93f75cba';
 // the Airthings Wave+ device.
 const DEVICE_ID = env.DEVICE_ID;
 
+// How long to wait for response before using cached data in seconds.
+const READ_TIMEOUT = Number(env.READ_TIMEOUT) || 15;
+
 // How long to use cached data in seconds.
 const CACHE_TTL = Number(env.CACHE_TTL) || 300;
 
 const PORT = env.PORT || 8080;
-
-function sleep(seconds) {
-	return new Promise((accept) => setTimeout(accept, 1000 * seconds));
-}
 
 async function main() {
 	let deviceId = DEVICE_ID;
@@ -38,7 +37,7 @@ async function main() {
 
 	const app = express();
 
-	const mutex = withTimeout(new Mutex(), 27 * 1000);
+	const mutex = withTimeout(new Mutex(), READ_TIMEOUT * 1000);
 	app.get('/', async (req, res) => {
 		const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 		const [cached, sensorData] = await readSensorData(device, mutex);

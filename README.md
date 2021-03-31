@@ -22,6 +22,15 @@ After all, it's battery-powered, and you don't want it to die from being constan
 Besides, the sensors only update their sensor data once every 5 minutes (1 hour for the
 radon reader), so polling the device more frequently wouldn't change much.
 
+Sometimes, the device will fail to respond in a timely manner.
+The service waits for a reply for 10 seconds (configurable through the environment variable
+`READ_TIMEOUT`, e.g. `READ_TIMEOUT=30` for 30 seconds).
+If the device hasn't responded within that time, the service will instead send back the cached
+reading (disregarding the `CACHE_TTL`).
+This problem always seems to solve itself within a minute of two, so it's not likely the service
+will perpetually send back stale data.
+The log will indicate when stale data is served.
+
 ## Usage
 
 ```
