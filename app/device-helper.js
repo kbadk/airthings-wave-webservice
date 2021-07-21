@@ -22,8 +22,9 @@ export async function findDeviceIdByManufacturerId(manufacturerId) {
 
 			await device.connectAsync();
 
+			let discoveredManufacturerId;
 			try {
-				const [discoveredManufacturerId,] = struct.unpack('<HLH',
+				[discoveredManufacturerId,] = struct.unpack('<HLH',
 					device.advertisement.manufacturerData);
 			} catch (e) {
 				console.log('Unable to unpack manufacturerData for', device.id);
