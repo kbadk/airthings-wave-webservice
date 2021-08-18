@@ -112,10 +112,18 @@ async function readSensorData(device, mutex) {
 	// { "humidity": 127.5, "radonStAvg": 0, "radonLtAvg": 0, "temperature": 382.2,
 	// 	 "pressure": 1310.7, "co2": 65535, "voc": 65535 }
 	// When that happens, we want to throw it away and try again.
-	if (sensorData.humidity > 100 || sensorData.temperature > 100
-		|| sensorData.co2 === 65535 || sensorData.voc === 65535) {
+	if (sensorData.humidity > 100 && sensorData.temperature > 100
+		&& sensorData.co2 === 65535 && sensorData.voc === 65535) {
 		console.log('Received bogus data', sensorData);
 		sensorData = null;
+	}
+
+	// Sometimes, the sensor is unable to read just a single or few values. When this happens,
+	// re-reading the values usually don't help. In this case, it's therefore better to just ignore
+	// the bogus values and send back what we got instead.
+	if (sensorData) {
+		sensorData.co2 = sensorData.co2 === 65535 ? undefined : sensorData.co2;
+		sensorData.voc = sensorData.voc === 65535 ? undefined : sensorData.voc;
 	}
 
 	cachedSensorData = sensorData;

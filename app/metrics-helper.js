@@ -33,7 +33,9 @@ const metricGuages = {
 
 export function getMetrics(sensorData) {
 	for (const metricName in metricGuages) {
-		metricGuages[metricName].set(sensorData[metricName]);
+		if (typeof sensorData[metricName] === "number") {
+			metricGuages[metricName].set(sensorData[metricName]);
+		}
 	}
 	return promClient.register.metrics();
 }
